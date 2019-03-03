@@ -1,0 +1,25 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+- name: copy requirements
+  copy:
+    src: "../src/requirements.txt"
+    dest: "/etc/radguestauth/requirements.txt"
+
+- name: copy radugestauth wheel
+  copy:
+    src: "../src/dist/radguestauth-{{ item }}-py3-none-any.whl"
+    dest: "/etc/radguestauth/pkg/radguestauth-{{ item }}-py3-none-any.whl"
+  with_file:
+    - "../src/dist/radguestauth-ver"
+
+- name: stop freeRADIUS
+  service:
+    name: "{{ freerad_service }}"
+    state: stopped
+
+- name: stop radguestauth
+  service:
+    name: "radguestauth"
+    state: stopped

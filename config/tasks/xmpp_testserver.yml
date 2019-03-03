@@ -1,0 +1,26 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+- name: install xmpp test server and client
+  apt:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - prosody
+    - profanity
+
+- name: add test users
+  command: "prosodyctl register {{ item.key }} localhost {{ item.value }}"
+  with_dict: {
+    "guestauth": "server1234",
+    "test": "test",
+  }
+
+- name: copy prosody config file
+  copy:
+    src: "files/xmpp/prosody.cfg.lua"
+    dest: "/etc/prosody/prosody.cfg.lua"
+
+- name: restart prosody
+  command: "prosodyctl restart"

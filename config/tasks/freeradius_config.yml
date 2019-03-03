@@ -1,0 +1,57 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+- copy:
+    src: "files/radius-cfg/clients.conf"
+    dest: "{{ freerad_path }}/clients.conf"
+  when: is_test_vm
+
+- name: Add rlm_rest to authorize section [default]
+  replace:
+    path: "{{ freerad_path }}/sites-available/default"
+    # if there are nested config blocks before preprocess in your config,
+    # this regex needs to be changed due to [^}]. It works for default
+    # config however.
+    regexp: '(authorize {[^}]*preprocess\n\n)(?!\t# Enable REST)'
+    replace: '\1\t# Enable REST\n\trest\n\n'
+
+- name: Add rlm_rest to authorize section [inner-tunnel]
+  replace:
+    path: "{{ freerad_path }}/sites-available/inner-tunnel"
+    # see above (nested entries); here, the line is inserted in another place
+    # as no preprocess is used in the tunnel.
+    regexp: '(authorize {[^}]*filter_inner_identity\n\n)(?!\t# Enable REST)'
+    replace: '\1\t# Enable REST\n\trest\n\n'
+
+- name: Add rlm_rest to post-auth section [default]
+  replace:
+    path: "{{ freerad_path }}/sites-available/default"
+    # add the line directly at the top of the block
+    regexp: '(post-auth {\s*\n)(?!\t# Enable REST)'
+    replace: '\1\t# Enable REST\n\trest\n\n'
+
+- name: Configure mod_eap such that requests are copied to tunnel
+  replace:
+    path: "{{ freerad_path }}/mods-available/eap"
+    regexp: 'copy_request_to_tunnel = no'
+    replace: 'copy_request_to_tunnel = yes'
+
+# always copy rlm_rest config file
+- name: copy rlm_rest config
+  copy:
+    src: "files/radius-cfg/mod_rest"
+    dest: "{{ freerad_path }}/mods-available/rest"
+
+- name: enable rlm_rest
+  file:
+    src: "{{ freerad_path }}/mods-available/rest"
+    dest: "{{ freerad_path }}/mods-enabled/rest"
+    state: link
+
+- name: disable freeRADIUS service for debugging purposes
+  service:
+    name: "{{ freerad_service }}"
+    state: stopped
+    enabled: no
+  when: is_test_vm

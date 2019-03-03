@@ -1,0 +1,39 @@
+config device 'eth0.1'
+	option name 'ethvlan1'
+
+config device 'eth0.2'
+	option name 'ethvlan2'
+
+config interface 'loopback'
+        option ifname 'lo'
+        option proto 'static'
+        option ipaddr '127.0.0.1'
+        option netmask '255.0.0.0'
+
+config globals 'globals'
+        option ula_prefix 'fd70:4dd7:94c5::/48'
+
+config interface 'wan'
+        option ifname 'eth0'
+        option proto 'static'
+        option ipaddr '192.168.178.11'
+        option gateway '192.168.178.1'
+        option dns '192.168.178.1'
+        option netmask '255.255.255.0'
+        option ip6assign '60'
+
+config interface 'vlan1'
+        option ifname 'eth0.1' # VLAN
+        option proto 'static'
+        option type 'bridge'
+        option ipaddr '192.168.2.1'
+        option netmask '255.255.255.0'
+        option ip6assign '60'
+
+config interface 'vlan2'
+        option ifname 'eth0.2' # VLAN
+        option proto 'static'
+        option type 'bridge'
+        option ipaddr '192.168.1.1'
+        option netmask '255.255.255.0'
+        option ip6assign '60'

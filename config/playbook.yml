@@ -1,0 +1,94 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+- hosts: default
+  become: yes
+  vars:
+    inst_file_path: /etc/ap_auth_env_installed
+    freerad_path: /etc/freeradius/3.0
+    freerad_service: freeradius
+    # Use flag to indicate test environment. This is useful for additional tasks like
+    # adding FreeRADIUS clients.conf
+    is_test_vm: True
+  tasks:
+  #
+  # -- installation of freeRADIUS and utilities --
+  #
+  # use a file to indicate setup has been run. Makes subsequent provisions faster
+  - stat:
+      path: "{{ inst_file_path }}"
+    register: inst_file
+
+  - include_tasks: tasks/install_packages.yml
+    vars:
+      supplicant_ver: 2.6
+    when: inst_file.stat.exists == False
+
+  - include_tasks: tasks/xmpp_testserver.yml
+
+  - file:
+      path: "{{ inst_file_path }}"
+      state: touch
+
+  - debug:
+      msg: "Remove {{ inst_file_path }} to rerun installation tasks"
+
+  #
+  # -- config files --
+  #
+  - name: Configuring freeRADIUS
+    include_tasks: tasks/freeradius_config.yml
+
+- hosts: openwrt
+  become: yes
+  vars:
+    freerad_path: /etc/freeradius3
+    freerad_service: radiusd
+    is_test_vm: False
+  tasks:
+    # https://stackoverflow.com/questions/11425106/python-pip-install-fails-invalid-command-egg-info/11425830#11425830
+    - name: Upgrade setuptools
+      command: "pip3 install --upgrade setuptools"
+      tags: firstrun
+
+    - name: Upload radguestauth module and remove previous version
+      include_tasks: tasks/openwrt_upload_prepare.yml
+      tags: upgrade
+
+    - name: install radguestauth dependencies
+      pip:
+        requirements: /etc/radguestauth/requirements.txt
+
+    - name: install radguestauth module
+      pip:
+        name: radguestauth
+        extra_args: "-f /etc/radguestauth/pkg"
+        state: forcereinstall
+
+    - name: Configuring freeRADIUS
+      include_tasks: tasks/freeradius_config.yml
+      tags: firstrun
+
+    - name: Enable cron
+      service:
+        name: cron
+        enabled: yes
+        state: started
+      tags: firstrun
+
+    - name: Disable root password (key login is used)
+      lineinfile:
+        path: /etc/shadow
+        regexp: '^root:'
+        line: 'root:*:0:0:99999:7:::'
+      tags: firstrun
+
+    - name: enable and (re)start services
+      service:
+        name: "{{ item }}"
+        enabled: yes
+        state: restarted
+      loop:
+        - radguestauth
+        - "{{ freerad_service }}"

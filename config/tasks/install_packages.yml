@@ -1,0 +1,84 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+# -- base requirements --
+- name: apt update
+  apt:
+    update_cache: yes
+
+- name: install packages
+  apt:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - freeradius
+    - freeradius-rest
+    - python3
+    - python3-pip
+
+# -- testing tool for EAP --
+# http://deployingradius.com/scripts/eapol_test/ and
+# https://wiki.aarnet.edu.au/display/eduroam/Useful+EAP+Tools+for+Authentication+Testing+Purposes
+- name: install requirements for wpa_supplicant
+  apt:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - build-essential
+    - openssl
+    - libssl-dev
+    - libnl-3-dev
+    - libnl-genl-3-dev
+
+- name: get wpa_supplicant source
+  get_url:
+    url: "http://w1.fi/releases/wpa_supplicant-{{ supplicant_ver }}.tar.gz"
+    dest: /tmp/wpa_supplicant.tar.gz
+
+- name: Unpack wpa_supplicant
+  unarchive:
+    src: /tmp/wpa_supplicant.tar.gz
+    dest: /opt
+
+- name: build eapol_test
+  block:
+    - copy:
+        src: "{{ buildpath }}/defconfig"
+        dest: "{{ buildpath }}/.config"
+        remote_src: yes
+
+    - lineinfile:
+        path: "{{ buildpath }}/.config"
+        regexp: '^#CONFIG_EAPOL_TEST=y'
+        line: 'CONFIG_EAPOL_TEST=y'
+
+    - lineinfile:
+        path: "{{ buildpath }}/.config"
+        regexp: '^#CONFIG_LIBNL32=y'
+        line: 'CONFIG_LIBNL32=y'
+
+    # patch for duplicate __bitwise, see http://w1.fi/cgit/hostap/commit/?id=f5b74b966c942feb95a8ddbb7d130540b15b796d
+    - replace:
+        path: "{{ sourcedir }}/src/utils/common.h"
+        regexp: '(^#define __force\n)(^#define __bitwise\n)'
+        replace: '\1#undef __bitwise\n\2'
+
+    - command: make eapol_test
+      args:
+        chdir: "{{ buildpath }}"
+
+    - copy:
+        src: "{{ buildpath }}/eapol_test"
+        dest: "/usr/local/bin/eapol_test"
+        remote_src: yes
+        mode: 0755
+  vars:
+    sourcedir: "/opt/wpa_supplicant-{{ supplicant_ver }}"
+    buildpath: "{{ sourcedir }}/wpa_supplicant"
+
+# -- prepare requirements for guest auth server --
+- name: install python requirements for guest auth server
+  command: make devsetup
+  args:
+    chdir: /vagrant/src

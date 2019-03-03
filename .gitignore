@@ -1,0 +1,9 @@
+*.log
+.vagrant/
+*.retry
+*.pyc
+__pycache__/
+cover/
+.coverage
+openwrt-imagebuilder/
+openwrt-sdk/
